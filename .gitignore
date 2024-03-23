@@ -1,9 +1,24 @@
-# editor, github and lint
-.github/
-.vscode/
-.idea/
-.husky/
-.eslintcache
+# See https://help.github.com/ignore-files/ for more about ignoring files.
 
-# node packages
-node_modules
+# dependencies
+/node_modules
+
+# testing
+/coverage
+
+# production
+/build
+
+# misc
+.eslintcache
+.DS_Store
+.idea
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+__*
