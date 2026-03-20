@@ -11,16 +11,17 @@ import {
   CardActions,
 } from "@mui/material";
 import ArrowLeftIcon from "@mui/icons-material/ArrowLeft";
-import Head from "next/head";
 import { ApiPostCall } from "../../api/ApiCall";
 import { CippApiResults } from "../CippComponents/CippApiResults";
 import { useEffect } from "react";
 import { useFormState } from "react-hook-form";
+import { CippHead } from "../CippComponents/CippHead";
 
 const CippFormPage = (props) => {
   const {
     title,
     backButtonTitle,
+    titleButton,
     formPageType = "Add",
     children,
     queryKey,
@@ -32,6 +33,7 @@ const CippFormPage = (props) => {
     hidePageType = false,
     hideTitle = false,
     hideSubmit = false,
+    allowResubmit = false,
     addedButtons,
     ...other
   } = props;
@@ -42,15 +44,14 @@ const CippFormPage = (props) => {
     relatedQueryKeys: queryKey,
   });
 
-  const { isValid } = useFormState({ control: formControl.control });
+  const { isValid, isDirty } = useFormState({ control: formControl.control });
 
   useEffect(() => {
-    delete router.query.tenantFilter;
-
     if (router.query) {
+      const { tenantFilter: _tenantFilter, ...queryWithoutTenant } = router.query;
       const resetValues = {
         ...formControl.getValues(),
-        ...router.query,
+        ...queryWithoutTenant,
       };
       formControl.reset(resetValues);
     }
@@ -69,15 +70,34 @@ const CippFormPage = (props) => {
   }, [postCall.isSuccess]);
 
   const handleSubmit = () => {
+    formControl.trigger();
+    // Check if the form is valid before proceeding
+    if (!isValid) {
+      return;
+    }
     const values = customDataformatter
       ? customDataformatter(formControl.getValues())
       : formControl.getValues();
-    //remove all empty values or blanks
-    Object.keys(values).forEach((key) => {
-      if (values[key] === "" || values[key] === null) {
-        delete values[key];
+    //remove all empty values or blanks (recursively)
+    const removeEmpty = (obj) => {
+      if (Array.isArray(obj)) {
+        return obj
+          .map((item) => (item && typeof item === "object" ? removeEmpty(item) : item))
+          .filter((item) => item !== "" && item !== null && item !== undefined);
       }
-    });
+      Object.keys(obj).forEach((key) => {
+        if (obj[key] === "" || obj[key] === null || obj[key] === undefined) {
+          delete obj[key];
+        } else if (typeof obj[key] === "object") {
+          obj[key] = removeEmpty(obj[key]);
+          if (!Array.isArray(obj[key]) && Object.keys(obj[key]).length === 0) {
+            delete obj[key];
+          }
+        }
+      });
+      return obj;
+    };
+    removeEmpty(values);
     postCall.mutate({
       url: postUrl,
       data: values,
@@ -85,40 +105,24 @@ const CippFormPage = (props) => {
   };
   return (
     <>
-      <Head>
-        <title>{title}</title>
-      </Head>
+      <CippHead title={title} />
       <Box
         sx={{
           flexGrow: 1,
-          py: 4,
         }}
       >
         <Container maxWidth="lg">
-          <Stack spacing={4}>
+          <Stack spacing={2}>
             {!hideTitle && (
               <Stack spacing={2}>
-                {!hideBackButton && (
-                  <div>
-                    <Button
-                      color="inherit"
-                      onClick={handleBackClick} // Go back to the previous page
-                      startIcon={
-                        <SvgIcon fontSize="small">
-                          <ArrowLeftIcon />
-                        </SvgIcon>
-                      }
-                    >
-                      {backButtonTitle}
-                    </Button>
-                  </div>
-                )}
-
-                <div>
+                <div
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                >
                   <Typography variant="h4">
                     {!hidePageType && <>{formPageType} - </>}
                     {title}
                   </Typography>
+                  {titleButton && titleButton}
                 </div>
               </Stack>
             )}
@@ -133,7 +137,7 @@ const CippFormPage = (props) => {
                   <Stack spacing={2} direction="row">
                     {addedButtons && addedButtons}
                     <Button
-                      disabled={postCall.isPending || !isValid}
+                      disabled={postCall.isPending || !isValid || (!allowResubmit && !isDirty)}
                       onClick={formControl.handleSubmit(handleSubmit)}
                       type="submit"
                       variant="contained"
